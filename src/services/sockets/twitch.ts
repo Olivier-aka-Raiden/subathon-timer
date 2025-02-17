@@ -12,7 +12,7 @@ export const parseCommand = (data: string, channel: string, sendChatMessage: (me
 
     if (!isModerator) return;
 
-    switch (command) {
+    switch (command.toLowerCase()) {
         case 'timerpause':
             togglePause();
             sendChatMessage(`Timer has been ${useTimerStore.getState().isPaused ? 'paused' : 'resumed'} by ${userName}`);
