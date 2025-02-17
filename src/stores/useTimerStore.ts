@@ -1,5 +1,6 @@
 import create from 'zustand';
 import { TimerState, TimeAddition, SUB_TIER_MINUTES } from '../types/Timer';
+import { persistenceStore } from './persistence';
 
 interface TimerStore extends TimerState {
   isPaused: boolean;
@@ -8,6 +9,7 @@ interface TimerStore extends TimerState {
   updateTimer: () => void;
   togglePause: () => void;
   lastUpdate: number;
+  resetTimer: () => void;
 }
 
 const calculateTimeToAdd = (addition: TimeAddition): number => {
@@ -24,32 +26,57 @@ const calculateTimeToAdd = (addition: TimeAddition): number => {
   }
 };
 
-const initialEndTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
+const loadInitialState = () => {
+  const savedState = persistenceStore.loadState();
+  if (savedState) {
+    return {
+      endTime: new Date(savedState.endTime),
+      isPaused: savedState.isPaused,
+      lastUpdate: savedState.lastUpdate
+    };
+  }
+  return {
+    endTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    isPaused: false,
+    lastUpdate: Date.now()
+  };
+};
 
+const initialState = loadInitialState();
 export const useTimerStore = create<TimerStore>((set, get) => ({
-  days: 1,
+  days: 0,
   hours: 0,
   minutes: 0,
   seconds: 0,
-  endTime: initialEndTime,
-  isPaused: false,
-  lastUpdate: Date.now(),
+  endTime: initialState.endTime,
+  isPaused: initialState.isPaused,
+  lastUpdate: initialState.lastUpdate,
 
   togglePause: () => {
     const isPaused = get().isPaused;
     if (isPaused) {
-      // When unpausing, adjust endTime based on the time spent paused
       const timeSpentPaused = Date.now() - get().lastUpdate;
       const currentEndTime = get().endTime;
-      set({
+      const newState = {
         isPaused: false,
         endTime: new Date(currentEndTime.getTime() + timeSpentPaused)
+      };
+      set(newState);
+      persistenceStore.saveState({
+        endTime: newState.endTime.toISOString(),
+        isPaused: newState.isPaused,
+        lastUpdate: Date.now()
       });
     } else {
-      // When pausing, store the current timestamp
-      set({
+      const newState = {
         isPaused: true,
         lastUpdate: Date.now()
+      };
+      set(newState);
+      persistenceStore.saveState({
+        endTime: get().endTime.toISOString(),
+        isPaused: newState.isPaused,
+        lastUpdate: newState.lastUpdate
       });
     }
   },
@@ -59,6 +86,11 @@ export const useTimerStore = create<TimerStore>((set, get) => ({
     const currentEndTime = get().endTime;
     const newEndTime = new Date(currentEndTime.getTime() + secondsToAdd * 1000);
     set({ endTime: newEndTime });
+    persistenceStore.saveState({
+      endTime: newEndTime.toISOString(),
+      isPaused: get().isPaused,
+      lastUpdate: get().lastUpdate
+    });
     get().updateTimer();
   },
 
@@ -67,6 +99,11 @@ export const useTimerStore = create<TimerStore>((set, get) => ({
     const currentEndTime = get().endTime;
     const newEndTime = new Date(currentEndTime.getTime() - secondsToRemove * 1000);
     set({ endTime: newEndTime });
+    persistenceStore.saveState({
+      endTime: newEndTime.toISOString(),
+      isPaused: get().isPaused,
+      lastUpdate: get().lastUpdate
+    });
     get().updateTimer();
   },
 
@@ -74,7 +111,6 @@ export const useTimerStore = create<TimerStore>((set, get) => ({
     const now = new Date();
     const endTime = get().endTime;
 
-    // If paused, use the lastUpdate time instead of current time
     const currentTime = get().isPaused ? get().lastUpdate : now.getTime();
     const diff = Math.max(0, endTime.getTime() - currentTime);
 
@@ -84,5 +120,25 @@ export const useTimerStore = create<TimerStore>((set, get) => ({
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
     set({ days, hours, minutes, seconds });
+    // Save current state to persistence
+    persistenceStore.saveState({
+      endTime: endTime.toISOString(),
+      isPaused: get().isPaused,
+      lastUpdate: get().lastUpdate
+    });
+  },
+
+  resetTimer: () => {
+    const newState = {
+      endTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      isPaused: get().isPaused,
+      lastUpdate: Date.now()
+    };
+    set({ ...newState, days: 1, hours: 0, minutes: 0, seconds: 0 });
+    persistenceStore.saveState({
+      endTime: newState.endTime.toISOString(),
+      isPaused: newState.isPaused,
+      lastUpdate: newState.lastUpdate
+    });
   }
 }));

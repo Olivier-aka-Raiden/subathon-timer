@@ -7,7 +7,7 @@ export const parseCommand = (data: string, channel: string, sendChatMessage: (me
     if (!commandMatch) return;
 
     const [_, userName, command, value] = commandMatch;
-    const { addTime, removeTime, togglePause } = useTimerStore.getState();
+    const { addTime, removeTime, togglePause, resetTimer } = useTimerStore.getState();
     const isModerator = data.includes('mod=1') || userName.toLowerCase() === channel.toLowerCase();
 
     if (!isModerator) return;
@@ -36,6 +36,10 @@ export const parseCommand = (data: string, channel: string, sendChatMessage: (me
                     sendChatMessage(`${userName} removed ${minutes} minutes from the timer`);
                 }
             }
+            break;
+        case 'timerreset':
+            resetTimer();
+            sendChatMessage(`${userName} reset the timer to 24 hours`);
             break;
     }
 };
